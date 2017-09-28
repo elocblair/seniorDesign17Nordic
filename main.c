@@ -383,8 +383,9 @@ static void sleep_mode_enter(void)
 {
     //blockUpdate = true;
 	SEGGER_RTT_WriteString(0,"NRF_INVALID_STATE\n");
-	uint32_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
-    APP_ERROR_CHECK(err_code);
+	uint32_t err_code;
+	//uint32_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
+   // APP_ERROR_CHECK(err_code);
 
     // Prepare wakeup buttons.
     //err_code = bsp_btn_ble_sleep_mode_prepare();
@@ -409,7 +410,7 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
     switch (ble_adv_evt)
     {
         case BLE_ADV_EVT_FAST:
-            err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
+            //err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
             APP_ERROR_CHECK(err_code);
             break;
         case BLE_ADV_EVT_IDLE:
@@ -432,7 +433,7 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
     switch (p_ble_evt->header.evt_id)
             {
         case BLE_GAP_EVT_CONNECTED:
-            err_code = bsp_indication_set(BSP_INDICATE_CONNECTED);
+            //err_code = bsp_indication_set(BSP_INDICATE_CONNECTED);
             APP_ERROR_CHECK(err_code);
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
             break;
@@ -646,9 +647,9 @@ static void buttons_leds_init(bool * p_erase_bonds)
 {
     bsp_event_t startup_event;
 
-    uint32_t err_code = bsp_init(BSP_INIT_LED | BSP_INIT_BUTTONS,
+    uint32_t err_code; /*= bsp_init(BSP_INIT_LED | BSP_INIT_BUTTONS,
                                  APP_TIMER_TICKS(100, APP_TIMER_PRESCALER), 
-                                 bsp_event_handler);
+                                 bsp_event_handler);*/
     APP_ERROR_CHECK(err_code);
 
     //err_code = bsp_btn_ble_init(NULL, &startup_event);

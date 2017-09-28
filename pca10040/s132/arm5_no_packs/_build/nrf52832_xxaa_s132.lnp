@@ -15,7 +15,6 @@
 ".\_build\pstorage.o"
 ".\_build\nrf_drv_twi.o"
 ".\_build\nrf_drv_spi.o"
-".\_build\app_button.o"
 ".\_build\app_error.o"
 ".\_build\app_error_weak.o"
 ".\_build\app_timer.o"

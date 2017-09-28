@@ -61,14 +61,11 @@
 .\_build\main.o: ..\..\..\..\..\bsp\bsp.h
 .\_build\main.o: ..\..\..\..\..\..\components\libraries\button\app_button.h
 .\_build\main.o: ..\..\..\our_service.h
-.\_build\main.o: ..\..\..\..\..\..\components\drivers_nrf\spi_master\nrf_drv_spi.h
+.\_build\main.o: ..\..\..\..\..\..\components\drivers_nrf\twi_master\nrf_drv_twi.h
 .\_build\main.o: ..\..\..\config\ble_app_template_s132_pca10040\nrf_drv_config.h
 .\_build\main.o: ..\..\..\..\..\..\components\drivers_nrf\config\nrf_drv_config_validation.h
-.\_build\main.o: ..\..\..\..\..\..\components\drivers_nrf\hal\nrf_spi.h
-.\_build\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
-.\_build\main.o: ..\..\..\..\..\..\components\drivers_nrf\hal\nrf_spim.h
-.\_build\main.o: ..\..\..\..\..\..\components\drivers_nrf\twi_master\nrf_drv_twi.h
 .\_build\main.o: ..\..\..\..\..\..\components\drivers_nrf\hal\nrf_twi.h
+.\_build\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
 .\_build\main.o: ..\..\..\..\..\..\components\libraries\util\app_util_platform.h
 .\_build\main.o: ..\..\..\..\..\..\components\softdevice\s132\headers\nrf_nvic.h
 .\_build\main.o: ..\..\..\..\..\..\components\libraries\util\nrf_assert.h
@@ -77,7 +74,3 @@
 .\_build\main.o: ..\..\..\..\..\..\external\segger_rtt\SEGGER_RTT_Conf.h
 .\_build\main.o: ..\..\..\..\..\..\components\drivers_nrf\gpiote\nrf_drv_gpiote.h
 .\_build\main.o: ..\..\..\..\..\..\components\drivers_nrf\hal\nrf_gpiote.h
-.\_build\main.o: ..\..\..\..\..\..\components\drivers_nrf\uart\nrf_drv_uart.h
-.\_build\main.o: ..\..\..\..\..\..\components\drivers_nrf\hal\nrf_uart.h
-.\_build\main.o: ..\..\..\..\..\..\components\drivers_nrf\hal\nrf_uarte.h
-.\_build\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h

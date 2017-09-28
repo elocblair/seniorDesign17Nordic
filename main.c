@@ -16,18 +16,13 @@
 #include "pstorage.h"
 #include "app_trace.h"
 #include "bsp.h"
-//#include "bsp_btn_ble.h"
 #include "our_service.h"
-#include "nrf_drv_spi.h"
 #include "nrf_drv_twi.h"
 #include "app_util_platform.h"
 #include "nrf_delay.h"
 #include "SEGGER_RTT.h"
 #include "nrf_drv_gpiote.h"
-#include "nrf_drv_uart.h"
-#include "math.h"
 
-#define SPI_INSTANCE  2 /**< SPI instance index. */
 
 #define TWI_SCL_M                26   //!< Master SCL pin
 #define TWI_SDA_M                25   //!< Master SDA pin
@@ -102,7 +97,6 @@ int FRAMregister = 0;
 int FRAMreadRegister = 0;
 int registerAtStop = 0;
 uint8_t FRAMfull = 0;
-static const nrf_drv_spi_t spi = NRF_DRV_SPI_INSTANCE(SPI_INSTANCE);                 /**< SPI instance. */
 static volatile bool spi_xfer_done; 
 static const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(MASTER_TWI_INST);
 
@@ -124,19 +118,7 @@ nrf_drv_gpiote_pin_t green_led = 15;
 nrf_drv_gpiote_pin_t yellow_led = 20;
 nrf_drv_gpiote_pin_t red_led = 19;
 nrf_drv_gpiote_pin_t boschIntEval = 6;
-nrf_drv_gpiote_pin_t boschInt = 3;
-// spi configuration structure
-nrf_drv_spi_config_t spi_config = {
-	12, 					  	//sck
-	13, 						//mosi
-	11, 						//miso
-	NRF_DRV_SPI_PIN_NOT_USED, 	//slave select
-	APP_IRQ_PRIORITY_HIGH,		//app_button_disable interrupt priority with soft device
-	0xFF,
-	NRF_DRV_SPI_FREQ_4M,
-	NRF_DRV_SPI_MODE_3,
-	NRF_DRV_SPI_BIT_ORDER_MSB_FIRST, 
-};
+nrf_drv_gpiote_pin_t boschInt = 3;// spi configuration structure
 
 
 bool blockUpdate = false;
@@ -178,10 +160,7 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 *												   wait for event
 *
 ****************************/
-void spi_event_handler(nrf_drv_spi_evt_t const * p_event)
-{
-	spi_xfer_done = true;
-}
+
 /****************************
 *
 *  bosch i2c gyroscope read
@@ -383,12 +362,11 @@ static void sleep_mode_enter(void)
 {
     //blockUpdate = true;
 	SEGGER_RTT_WriteString(0,"NRF_INVALID_STATE\n");
-	uint32_t err_code;
-	//uint32_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
-   // APP_ERROR_CHECK(err_code);
+	uint32_t err_code = bsp_indication_set(BSP_INDICATE_IDLE);
+    APP_ERROR_CHECK(err_code);
 
     // Prepare wakeup buttons.
-    //err_code = bsp_btn_ble_sleep_mode_prepare();
+    err_code = bsp_btn_ble_sleep_mode_prepare();
     APP_ERROR_CHECK(err_code);
 
     // Go to system-off mode (this function will not return; wakeup will cause a reset).
@@ -410,7 +388,7 @@ static void on_adv_evt(ble_adv_evt_t ble_adv_evt)
     switch (ble_adv_evt)
     {
         case BLE_ADV_EVT_FAST:
-            //err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
+            err_code = bsp_indication_set(BSP_INDICATE_ADVERTISING);
             APP_ERROR_CHECK(err_code);
             break;
         case BLE_ADV_EVT_IDLE:
@@ -433,7 +411,7 @@ static void on_ble_evt(ble_evt_t * p_ble_evt)
     switch (p_ble_evt->header.evt_id)
             {
         case BLE_GAP_EVT_CONNECTED:
-            //err_code = bsp_indication_set(BSP_INDICATE_CONNECTED);
+            err_code = bsp_indication_set(BSP_INDICATE_CONNECTED);
             APP_ERROR_CHECK(err_code);
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
             break;
@@ -460,7 +438,7 @@ static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
 {
     dm_ble_evt_handler(p_ble_evt);
     ble_conn_params_on_ble_evt(p_ble_evt);
-    //bsp_btn_ble_on_ble_evt(p_ble_evt);
+    bsp_btn_ble_on_ble_evt(p_ble_evt);
     on_ble_evt(p_ble_evt);
     ble_advertising_on_ble_evt(p_ble_evt);
     // Call ble_our_service_on_ble_evt() to do housekeeping of ble connections related to our service and characteristic
@@ -647,12 +625,12 @@ static void buttons_leds_init(bool * p_erase_bonds)
 {
     bsp_event_t startup_event;
 
-    uint32_t err_code; /*= bsp_init(BSP_INIT_LED | BSP_INIT_BUTTONS,
+    uint32_t err_code = bsp_init(BSP_INIT_LED | BSP_INIT_BUTTONS,
                                  APP_TIMER_TICKS(100, APP_TIMER_PRESCALER), 
-                                 bsp_event_handler);*/
+                                 bsp_event_handler);
     APP_ERROR_CHECK(err_code);
 
-    //err_code = bsp_btn_ble_init(NULL, &startup_event);
+    err_code = bsp_btn_ble_init(NULL, &startup_event);
     APP_ERROR_CHECK(err_code);
 
     *p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
@@ -699,28 +677,7 @@ static ret_code_t twi_master_init(void)
     return ret;
 }
 
-/**@brief Function for application main entry.
- */
-void spiInit(int cs, uint8_t* txbuffer, uint8_t* rxbuffer, uint8_t* txbuffread){
-	nrf_drv_gpiote_out_clear(cs);
-	nrf_drv_spi_transfer(&spi, txbuffer , 2, NULL, 0);
-	while (!spi_xfer_done)
-    {
-        __WFE();
-    }
-	nrf_drv_gpiote_out_set(cs);
-	spi_xfer_done = false;
-	
-	nrf_drv_gpiote_out_clear(cs);
-	nrf_drv_spi_transfer(&spi, txbuffread , 2, rxbuffer, 2);
-	while (!spi_xfer_done)
-    {
-        __WFE();
-    }
-	nrf_drv_gpiote_out_set(cs);
-	spi_xfer_done = false;
-	
-}
+
 
 void initializePin(nrf_drv_gpiote_out_config_t pinConfig, nrf_drv_gpiote_pin_t pin, bool pinStatus){
 	ret_code_t err_code;
@@ -793,83 +750,6 @@ int main(void)
 	*
 	****************************/
     
-	APP_ERROR_CHECK(nrf_drv_spi_init(&spi, &spi_config, spi_event_handler));
-	
-/*************************************************************************************************
-*
-* ADXL initialize 
-*	meas mode
-*
-**************************************************************************************************/
-	
-	uint8_t initTxBuff[2] = {0x2D,0x00};   //power control register 0x08 is measurement mode
-	uint8_t* addrInitTx = &initTxBuff[0];
-	uint8_t initRxBuff[2];
-	uint8_t* addrInitRxBuff = &initRxBuff[0];
-	uint8_t initTxRead[1] = {0x80};
-	uint8_t* addrInitTxRead = &initTxRead[0];
-	spiInit(CS_ADXL1_PIN_EVAL, addrInitTx, addrInitRxBuff, addrInitTxRead);
-	SEGGER_RTT_printf(0, "ADXL1 measurement mode 0 = %d\n", initRxBuff[1]);
-	mainADXLid = initRxBuff[1];
-	spiInit(CS_ADXL2_PIN, addrInitTx, addrInitRxBuff, addrInitTxRead);
-	SEGGER_RTT_printf(0, "ADXL2 measurement mode 0 = %d\n", initRxBuff[1]);
-	antADXLid = initRxBuff[1];
-	/*nrf_drv_gpiote_out_clear(CS_ADXL1_PIN);
-	nrf_drv_spi_transfer(&spi, addrInitTx , 2, NULL, 0);
-	while (!spi_xfer_done)
-    {
-        __WFE();
-    }
-	nrf_drv_gpiote_out_set(CS_ADXL1_PIN);
-	spi_xfer_done = false;*/
-	
-	uint8_t FRAMtx[1] = {0x06};  								//write enable
-	uint8_t* addrFRAMtx = &FRAMtx[0];
-	nrf_drv_gpiote_out_clear(CS_FRAM_EVAL);
-	nrf_drv_spi_transfer(&spi, addrFRAMtx,1, NULL,0);
-	while (!spi_xfer_done)
-    {
-       __WFE();
-    }
-	nrf_drv_gpiote_out_set(CS_FRAM_EVAL);
-	spi_xfer_done = false;
-	
-	uint8_t FRAMtx2[2] = {0x01,0x42};
-	uint8_t* addrFRAMtx2 = &FRAMtx2[0];
-	nrf_drv_gpiote_out_clear(CS_FRAM_EVAL);
-	nrf_drv_spi_transfer(&spi,addrFRAMtx2,2,NULL,0);
-	while (!spi_xfer_done)
-    {
-       __WFE();
-    }
-	nrf_drv_gpiote_out_set(CS_FRAM_EVAL);
-	spi_xfer_done = false;
-	
-	nrf_drv_gpiote_out_clear(CS_FRAM_EVAL);						 //write enable again
-	nrf_drv_spi_transfer(&spi, addrFRAMtx,1, NULL,0);
-	while (!spi_xfer_done)
-    {
-       __WFE();
-    }
-	nrf_drv_gpiote_out_set(CS_FRAM_EVAL);
-	spi_xfer_done = false;
-	
-	uint8_t FRAMtx3[2] = {0x05,0x00};
-	uint8_t* addrFRAMtx3 = &FRAMtx3[0];
-	uint8_t FRAMrx3[2];
-	uint8_t* addrFRAMrx3 = &FRAMrx3[0];
-	nrf_drv_gpiote_out_clear(CS_FRAM_EVAL);					 //read status register
-	nrf_drv_spi_transfer(&spi, addrFRAMtx3,1,addrFRAMrx3,2);
-	while (!spi_xfer_done)
-    {
-       __WFE();
-    }
-	nrf_drv_gpiote_out_set(CS_FRAM_EVAL);
-	spi_xfer_done = false;
-	
-	if (FRAMrx3[1] == 66){
-		SEGGER_RTT_WriteString(0,"FRAM initialized\n");
-	}
 
 /***********************************************************************************
 *

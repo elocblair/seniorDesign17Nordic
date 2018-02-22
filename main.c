@@ -27,6 +27,8 @@
 #define TWI_SCL_M                26   //!< Master SCL pin
 #define TWI_SDA_M                25   //!< Master SDA pin
 
+#define BOSCH_ADDRESS           0x28
+
 #define CS_ADXL2_PIN  8 /**< SPI CS Pin.*/
 #define CS_ADXL1_PIN  17
 #define CS_ADXL1_PIN_EVAL 3
@@ -49,7 +51,7 @@
 #define DEVICE_NAME                      "JohnCougarMellenc"
 #define APP_ADV_INTERVAL                 300                                        /**< The advertising interval 
 																							(in units of 0.625 ms. This value corresponds to 25 ms). */
-#define APP_ADV_TIMEOUT_IN_SECONDS       60                                        /**< The advertising timeout in units of seconds. */
+#define APP_ADV_TIMEOUT_IN_SECONDS       300                                        /**< The advertising timeout in units of seconds. */
 
 #define APP_TIMER_PRESCALER              0                                          /**< Value of the RTC1 PRESCALER register. */
 #define APP_TIMER_OP_QUEUE_SIZE          4                                          /**< Size of timer operation queues. */
@@ -171,8 +173,8 @@ uint8_t* readGyro(){
 		uint8_t i2cTx[1] = {0x1A};
 		uint8_t* addrTx = &i2cTx[0];
 		uint8_t* addrRx = &buffRx[7];
-		nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,true); //i2c read to address located in i2cTx[0]
-		nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,6);
+		nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,1,true); //i2c read to address located in i2cTx[0]
+		nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,addrRx,6);
 		/*SEGGER_RTT_printf(0, "%d\t",buffRx[7]);
 		SEGGER_RTT_printf(0, "%d\t",buffRx[8]);
 		SEGGER_RTT_printf(0, "%d\t",buffRx[9]);
@@ -180,8 +182,8 @@ uint8_t* readGyro(){
 		SEGGER_RTT_printf(0, "%d\n",buffRx[11]);*/
 		uint8_t* addrRxGrav = &buffRx[13];
 		i2cTx[0] = 0x08;
-		nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,true); //i2c read to address located in i2cTx[0]
-		nrf_drv_twi_rx(&m_twi_master,0x29,addrRxGrav,6);
+		nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,1,true); //i2c read to address located in i2cTx[0]
+		nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,addrRxGrav,6);
 	}	
 	return &buffRx[7];
 }	
@@ -191,18 +193,18 @@ void int_fxn(){
 
 	uint8_t boschIntCheck[2];
 	boschIntCheck[0] = 0x37;
-	nrf_drv_twi_tx(&m_twi_master,0x29,&boschIntCheck[0],1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,&boschIntCheck[1],1);
+	nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,&boschIntCheck[0],1,false);
+	nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,&boschIntCheck[1],1);
 	SEGGER_RTT_printf(0,"any or no motion = %d\n",boschIntCheck[1]);
 	uint8_t boschIntReset[2] = {0x3F,0x40};
-	nrf_drv_twi_tx(&m_twi_master, 0x29, &boschIntReset[0],2,false);	
+	nrf_drv_twi_tx(&m_twi_master, BOSCH_ADDRESS, &boschIntReset[0],2,false);	
 	if(boschIntCheck[1] >= 128){
 		blockUpdate = true;
 		nrf_drv_gpiote_out_set(15); //green off 
 		SEGGER_RTT_WriteString(0, "no motion\n");
 		boschIntCheck[0] = 0x3E;
 		boschIntCheck[1] = 0x01;
-		nrf_drv_twi_tx(&m_twi_master, 0x29, &boschIntCheck[0],2,false);
+		nrf_drv_twi_tx(&m_twi_master, BOSCH_ADDRESS, &boschIntCheck[0],2,false);
 		SEGGER_RTT_printf(0,"should be 01 %d\n",boschIntCheck[1]);
 	}
 	else if(boschIntCheck[1] >= 64 && boschIntCheck[1] < 128){
@@ -211,9 +213,9 @@ void int_fxn(){
 		SEGGER_RTT_WriteString(0,"any motion\n");
 		boschIntCheck[0] = 0x3E;
 		boschIntCheck[1] = 0x00;
-		nrf_drv_twi_tx(&m_twi_master, 0x29, &boschIntCheck[0],2,false);
-		nrf_drv_twi_tx(&m_twi_master, 0x29, &boschIntCheck[0],1,false);
-		nrf_drv_twi_rx(&m_twi_master, 0x29, &boschIntCheck[0],1);
+		nrf_drv_twi_tx(&m_twi_master, BOSCH_ADDRESS, &boschIntCheck[0],2,false);
+		nrf_drv_twi_tx(&m_twi_master, BOSCH_ADDRESS, &boschIntCheck[0],1,false);
+		nrf_drv_twi_rx(&m_twi_master, BOSCH_ADDRESS, &boschIntCheck[0],1);
 		SEGGER_RTT_printf(0,"should be 00 %d\n",boschIntCheck[0]);
 		ble_advertising_start(BLE_ADV_MODE_FAST);
 	}
@@ -776,19 +778,19 @@ int main(void)
 
 	ret_code_t i2cErr;
 	//write
-	i2cErr = nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
+	i2cErr = nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,2,false);
 	if (i2cErr == NRF_ERROR_INTERNAL)
 	{
 		SEGGER_RTT_WriteString(0, "i2cError 1\n");
 	}
 
 	//read
-	i2cErr = nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,false);
+	i2cErr = nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,1,false);
 	if (i2cErr == NRF_ERROR_INTERNAL)
 	{
 		SEGGER_RTT_WriteString(0, "i2cError 3\n");
 	}
-	i2cErr = nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
+	i2cErr = nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,addrRx,1);
 	if (i2cErr == NRF_ERROR_INTERNAL)
 	{
 		SEGGER_RTT_WriteString(0, "i2cError 4\n");
@@ -802,62 +804,62 @@ int main(void)
 	****************************/
 	txBuff[0] = 0x07;				//switch from page 0 to page 1 
 	txBuff[1] = 0x01;
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
+	nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,2,false);
+	nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,1,false);
+	nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,addrRx,1);
 	
 	
 
 	/*
 	*  Bosch interrupt settings
 	*/
-	txBuff[0] = 0x08;
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
-	SEGGER_RTT_printf(0,"01 = %d\n", rxBuff[0]);
+	txBuff[0] = 0x08;      //accelerometer settings to +/- 4G 
+	nrf_drv_twi_tx(&m_twi_master, BOSCH_ADDRESS,addrTx,1,false);
+	nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,addrRx,1);
+	SEGGER_RTT_printf(0,"13 = %d\n", rxBuff[0]);
 	
-	txBuff[0] = 0x10; //interrupt enable
+	/*txBuff[0] = 0x10; //interrupt enable
 	txBuff[1] = 0xC0; // enable no motion int
-	nrf_drv_twi_tx(&m_twi_master, 0x29, addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
+	nrf_drv_twi_tx(&m_twi_master, BOSCH_ADDRESS, addrTx,2,false);
+	nrf_drv_twi_tx(&m_twi_master, BOSCH_ADDRESS,addrTx,1,false);
+	nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,addrRx,1);
 	SEGGER_RTT_printf(0,"C0 = %d\n", rxBuff[0]);
 	
 	txBuff[0] = 0x0F; //interrupt mask, value to write is still 0x40 for any motion 
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
+	nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,2,false);
+	nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,1,false);
+	nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,addrRx,1);
 	SEGGER_RTT_printf(0,"C0 = %d\n", rxBuff[0]);
 	
 	
 	txBuff[0] = 0x11; // any motion threshold
 	txBuff[1] = 0x12; // threshold 7.81mg per LSB 
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
+	nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,2,false);
+	nrf_drv_twi_tx(&m_twi_master, BOSCH_ADDRESS,addrTx,1,false);
+	nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,addrRx,1);
 	SEGGER_RTT_printf(0,"12 = %d\n", rxBuff[0]);
 	
 	txBuff[0] = 0x12; // acc interrupt settings 2 LSB == any motion duration
-	txBuff[1] = 0x1C;
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
+	txBuff[1] = 0xFF;
+	nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,2,false);
+	nrf_drv_twi_tx(&m_twi_master, BOSCH_ADDRESS,addrTx,1,false);
+	nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,addrRx,1);
 	SEGGER_RTT_printf(0,"1C = %d\n", rxBuff[0]);
 	
 	txBuff[0] = 0x16;
-	txBuff[1] = 0x35; // no motion 5 seconds will trigger interrupt
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
+	txBuff[1] = 0x09; // no motion 5 seconds will trigger interrupt
+	nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,2,false);
+	nrf_drv_twi_tx(&m_twi_master, BOSCH_ADDRESS,addrTx,1,false);
+	nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,addrRx,1);
 	SEGGER_RTT_printf(0,"0B = %d\n", rxBuff[0]);
 	
 
 	txBuff[0] = 0x15;
 	txBuff[1] = 0x12;
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
-	SEGGER_RTT_printf(0,"12 = %d\n", rxBuff[0]);
+	nrf_drv_twi_tx(&m_twi_master, BOSCH_ADDRESS,addrTx,2,false);
+	nrf_drv_twi_tx(&m_twi_master, BOSCH_ADDRESS,addrTx,1,false);
+	nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,addrRx,1);
+	SEGGER_RTT_printf(0,"12 = %d\n", rxBuff[0]);*/
 
 	/****************************
 	*
@@ -866,9 +868,9 @@ int main(void)
 	****************************/
 	txBuff[0] = 0x07;				//back to page 0
 	txBuff[1] = 0x00;
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
+	nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,2,false);
+	nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,1,false);
+	nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,addrRx,1);
 	/****************************
 	*
 	*  init complete, sensor can be read 
@@ -877,9 +879,9 @@ int main(void)
 	****************************/
 	txBuff[0] = 0x3D;				//operation mode = gyro only ********sensor powers on in config mode
 	txBuff[1] = 0x0C;
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
+	nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,2,false);
+	nrf_drv_twi_tx(&m_twi_master,BOSCH_ADDRESS,addrTx,1,false);
+	nrf_drv_twi_rx(&m_twi_master,BOSCH_ADDRESS,addrRx,1);
 
 	if (rxBuff[0] == 0x0C){
 		SEGGER_RTT_WriteString(0, "Main BNO055 initialized\n");

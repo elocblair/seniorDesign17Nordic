@@ -3,12 +3,21 @@
 <pre>
 <h1>µVision Build Log</h1>
 <h2>Tool Versions:</h2>
+<<<<<<< HEAD
 IDE-Version: µVision V5.25.2.0
 Copyright (C) 2018 ARM Ltd and ARM Germany GmbH. All rights reserved.
 License Information: eloc blair, txbdc, LIC=----
  
 Tool Versions:
 Toolchain:       MDK-ARM Essential  Version: 5.25.2.0
+=======
+IDE-Version: µVision V5.22.0.0
+Copyright (C) 2016 ARM Ltd and ARM Germany GmbH. All rights reserved.
+License Information: Cole Blair, TxBDC, LIC=----
+ 
+Tool Versions:
+Toolchain:       MDK-Lite  Version: 5.22
+>>>>>>> origin/master
 Toolchain Path:  C:\Keil_v5\ARM\ARMCC\Bin
 C Compiler:      Armcc.exe V5.06 update 6 (build 750)
 Assembler:       Armasm.exe V5.06 update 6 (build 750)
@@ -21,8 +30,13 @@ Target DLL:      Segger\JL2CM3.dll V2.99.29.0
 Dialog DLL:      TCM.DLL V1.35.1.0
  
 <h2>Project:</h2>
+<<<<<<< HEAD
 C:\Users\neuronifier\Desktop\Cole\Nordic Tools\nRF5_SDK_11.0.0_89a8197\examples\ble_peripheral\shockclockadxl\pca10040\s132\arm5_no_packs\nrf52-ble-tutorial-characteristic.uvprojx
 Project File Date:  05/02/2018
+=======
+C:\Users\Cole\Desktop\work\nRF5_SDK_11.0.0_89a8197\examples\ble_peripheral\seniorDesign17Nordic-master\pca10040\s132\arm5_no_packs\nrf52-ble-tutorial-characteristic.uvprojx
+Project File Date:  02/19/2018
+>>>>>>> origin/master
 
 <h2>Output:</h2>
   
@@ -30,6 +44,7 @@ Warning: *** SUPPORT EXPIRED, NEW PRODUCT SERIAL NUMBER REQUIRED ***
          *** Running with Code Size Limit: 32K                   ***
 *** Using Compiler 'V5.06 update 6 (build 750)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
 Build target 'nrf52832_xxaa_s132'
+<<<<<<< HEAD
 compiling bosch_BNO055.c...
 ..\..\..\..\shockclocktest-bosch\pca10040\s132\arm5_no_packs\bosch_BNO055.h(10): warning:  #1-D: last line of file ends without a newline
   uint8_t* readEuler();
@@ -50,6 +65,28 @@ compiling bosch_BNO055.c...
 ..\..\..\..\shockclocktest-bosch\pca10040\s132\arm5_no_packs\bosch_BNO055.c: 8 warnings, 0 errors
 linking...
 Program Size: Code=29936 RO-data=1484 RW-data=464 ZI-data=11584  
+=======
+compiling main.c...
+..\..\..\main.c(371): warning:  #223-D: function "bsp_btn_ble_sleep_mode_prepare" declared implicitly
+      err_code = bsp_btn_ble_sleep_mode_prepare();
+..\..\..\main.c(443): warning:  #223-D: function "bsp_btn_ble_on_ble_evt" declared implicitly
+      bsp_btn_ble_on_ble_evt(p_ble_evt);
+..\..\..\main.c(635): warning:  #223-D: function "bsp_btn_ble_init" declared implicitly
+      err_code = bsp_btn_ble_init(NULL, &startup_event);
+..\..\..\main.c(742): warning:  #167-D: argument of type "void (*)()" is incompatible with parameter of type "nrf_drv_gpiote_evt_handler_t"
+  	err_code = nrf_drv_gpiote_in_init(boschIntEval, &interrupt, int_fxn);
+..\..\..\main.c(116): warning:  #177-D: variable "ADXLdataBuffer"  was declared but never referenced
+  static uint8_t ADXLdataBuffer[196] = {0};
+..\..\..\main.c(117): warning:  #177-D: variable "ADXLdataBuffer2"  was declared but never referenced
+  static uint8_t ADXLdataBuffer2[196] = {0};
+..\..\..\main.c(133): warning:  #177-D: variable "data_dump_id"  was declared but never referenced
+  APP_TIMER_DEF(data_dump_id);
+..\..\..\main.c(626): warning:  #177-D: function "buttons_leds_init"  was declared but never referenced
+  static void buttons_leds_init(bool * p_erase_bonds)
+..\..\..\main.c: 8 warnings, 0 errors
+linking...
+Program Size: Code=29820 RO-data=1528 RW-data=440 ZI-data=11640  
+>>>>>>> origin/master
 FromELF: creating hex file...
 ".\_build\nrf52832_xxaa_s132.axf" - 0 Error(s), 9 Warning(s).
 
@@ -68,7 +105,11 @@ Package Vendor: NordicSemiconductor
    * Component: Startup Version: 8.5.0
 
 <h2>Collection of Component include folders:</h2>
+<<<<<<< HEAD
   .\RTE\_nrf52832_xxaa_s132
+=======
+  C:\Users\Cole\Desktop\work\nRF5_SDK_11.0.0_89a8197\examples\ble_peripheral\seniorDesign17Nordic-master\pca10040\s132\arm5_no_packs\RTE\_nrf52832_xxaa_s132
+>>>>>>> origin/master
   C:\Keil_v5\ARM\PACK\ARM\CMSIS\4.5.0\CMSIS\Include
   C:\Keil_v5\ARM\PACK\NordicSemiconductor\nRF_DeviceFamilyPack\8.5.0\Device\Include
 
@@ -77,10 +118,17 @@ Package Vendor: NordicSemiconductor
    * Component: ARM::CMSIS:CORE:4.3.0
 
    * Component: NordicSemiconductor::Device:Startup:8.5.0
+<<<<<<< HEAD
       Source file:   Device\Source\arm\arm_startup_nrf52.s
       Source file:   Device\Source\system_nrf52.c
       Include file:  Device\Include\system_nrf52.h
 Build Time Elapsed:  00:00:01
+=======
+      Source file:   Device\Source\system_nrf52.c
+      Include file:  Device\Include\system_nrf52.h
+      Source file:   Device\Source\arm\arm_startup_nrf52.s
+Build Time Elapsed:  00:00:02
+>>>>>>> origin/master
 </pre>
 </body>
 </html>

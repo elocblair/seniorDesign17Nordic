@@ -16,18 +16,24 @@
 #include "pstorage.h"
 #include "app_trace.h"
 #include "bsp.h"
+#include "bsp_btn_ble.h"
 #include "our_service.h"
-#include "nrf_drv_twi.h"
+#include "nrf_drv_spi.h"
 #include "app_util_platform.h"
 #include "nrf_delay.h"
 #include "SEGGER_RTT.h"
 #include "nrf_drv_gpiote.h"
+#include "nrf_drv_uart.h"
+#include "math.h"
+#include "adxl.h"
+#include "fram.h"
 
+#define SPI_INSTANCE  2 /**< SPI instance index. */
 
 #define TWI_SCL_M                26   //!< Master SCL pin
 #define TWI_SDA_M                25   //!< Master SDA pin
 
-#define CS_ADXL2_PIN  8 /**< SPI CS Pin.*/
+#define CS_ADXL2_PIN  6 /**< SPI CS Pin.*/
 #define CS_ADXL1_PIN  17
 #define CS_ADXL1_PIN_EVAL 3
 #define CS_ADXL2_PIN_EVAL 8
@@ -73,11 +79,23 @@
 #define SEC_PARAM_MAX_KEY_SIZE           16                                         /**< Maximum encryption key size. */
 
 #define DEAD_BEEF                        0xDEADBEEF                                 /**< Value used as error code on stack dump,
- 																							can be used to identify stack location on stack unwind. */
+																																													can be used to identify stack location on stack unwind. */
+
+// cole 410 do we need this?
 #define ADXL1  0
 #define FRAM   1
 #define ADXL2  2
 #define SDCARD 3
+//410
+
+ret_code_t init_gpiote(void);
+uint8_t testADXL(void);
+void initSPI(void);
+void initADXLfor1600(void);
+void initFRAM1600(void);
+uint8_t* readFRAM(void);
+bool init_i2c(void);
+bool initBosch(void);
 
 static dm_application_instance_t        m_app_handle;                               /**< Application identifier allocated by device manager */
 
@@ -98,7 +116,6 @@ int FRAMreadRegister = 0;
 int registerAtStop = 0;
 uint8_t FRAMfull = 0;
 static volatile bool spi_xfer_done; 
-static const nrf_drv_twi_t m_twi_master = NRF_DRV_TWI_INSTANCE(MASTER_TWI_INST);
 
 // spi read from adxl buffers
 uint8_t buffTx[1] = {0xF2}; // reading static values from the sensor NOT acc values
@@ -118,10 +135,13 @@ nrf_drv_gpiote_pin_t green_led = 15;
 nrf_drv_gpiote_pin_t yellow_led = 20;
 nrf_drv_gpiote_pin_t red_led = 19;
 nrf_drv_gpiote_pin_t boschIntEval = 6;
-nrf_drv_gpiote_pin_t boschInt = 3;// spi configuration structure
-
+nrf_drv_gpiote_pin_t boschInt = 3;
+nrf_drv_gpiote_pin_t ADXLint1 = 9;
 
 bool blockUpdate = false;
+
+// FRAM register variables 
+
 
 // service structure for our application
 ble_os_t m_our_service;
@@ -129,7 +149,7 @@ ble_os_t m_our_service;
 // app_timer id variable and timer interval
 APP_TIMER_DEF(m_our_char_timer_id);
 APP_TIMER_DEF(data_dump_id);
-#define OUR_CHAR_TIMER_INTERVAL     APP_TIMER_TICKS(10, APP_TIMER_PRESCALER) /* 10 ms intervals, 
+#define OUR_CHAR_TIMER_INTERVAL     APP_TIMER_TICKS(1000, APP_TIMER_PRESCALER) /* 10 ms intervals, 
 																			      2 packets per connection interval*/
 #define DATA_DUMP_TIMER_INTERVAL     APP_TIMER_TICKS(25, APP_TIMER_PRESCALER)
 
@@ -146,6 +166,7 @@ static ble_uuid_t       m_adv_uuids[] = {{BLE_UUID_OUR_SERVICE_UUID, BLE_UUID_TY
  * @param[in] line_num   Line number of the failing ASSERT call.
  * @param[in] file_name  File name of the failing ASSERT call.
  */
+//cole 410 what 
 void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 {
     app_error_handler(DEAD_BEEF, line_num, p_file_name);
@@ -160,64 +181,20 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 *												   wait for event
 *
 ****************************/
+/*void spi_event_handler(nrf_drv_spi_evt_t const * p_event)
+{
+	spi_xfer_done = true;
+}
+	*/
 
-/****************************
-*
-*  bosch i2c gyroscope read
-*
-****************************/
-uint8_t* readGyro(){
-	if(!blockUpdate){
-		uint8_t i2cTx[1] = {0x1A};
-		uint8_t* addrTx = &i2cTx[0];
-		uint8_t* addrRx = &buffRx[7];
-		nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,true); //i2c read to address located in i2cTx[0]
-		nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,6);
-		/*SEGGER_RTT_printf(0, "%d\t",buffRx[7]);
-		SEGGER_RTT_printf(0, "%d\t",buffRx[8]);
-		SEGGER_RTT_printf(0, "%d\t",buffRx[9]);
-		SEGGER_RTT_printf(0, "%d\t",buffRx[10]);
-		SEGGER_RTT_printf(0, "%d\n",buffRx[11]);*/
-		uint8_t* addrRxGrav = &buffRx[13];
-		i2cTx[0] = 0x08;
-		nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,true); //i2c read to address located in i2cTx[0]
-		nrf_drv_twi_rx(&m_twi_master,0x29,addrRxGrav,6);
-	}	
-	return &buffRx[7];
-}	
+static void dumpData(void * p_context){
+
+	uint8_t* addy = readFRAM();
+	our_termperature_characteristic_update(&m_our_service, addy);
 
 	
-void int_fxn(){
-
-	uint8_t boschIntCheck[2];
-	boschIntCheck[0] = 0x37;
-	nrf_drv_twi_tx(&m_twi_master,0x29,&boschIntCheck[0],1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,&boschIntCheck[1],1);
-	SEGGER_RTT_printf(0,"any or no motion = %d\n",boschIntCheck[1]);
-	uint8_t boschIntReset[2] = {0x3F,0x40};
-	nrf_drv_twi_tx(&m_twi_master, 0x29, &boschIntReset[0],2,false);	
-	if(boschIntCheck[1] >= 128){
-		blockUpdate = true;
-		nrf_drv_gpiote_out_set(15); //green off 
-		SEGGER_RTT_WriteString(0, "no motion\n");
-		boschIntCheck[0] = 0x3E;
-		boschIntCheck[1] = 0x01;
-		nrf_drv_twi_tx(&m_twi_master, 0x29, &boschIntCheck[0],2,false);
-		SEGGER_RTT_printf(0,"should be 01 %d\n",boschIntCheck[1]);
-	}
-	else if(boschIntCheck[1] >= 64 && boschIntCheck[1] < 128){
-		blockUpdate = false;
-		nrf_drv_gpiote_out_clear(15); //green on
-		SEGGER_RTT_WriteString(0,"any motion\n");
-		boschIntCheck[0] = 0x3E;
-		boschIntCheck[1] = 0x00;
-		nrf_drv_twi_tx(&m_twi_master, 0x29, &boschIntCheck[0],2,false);
-		nrf_drv_twi_tx(&m_twi_master, 0x29, &boschIntCheck[0],1,false);
-		nrf_drv_twi_rx(&m_twi_master, 0x29, &boschIntCheck[0],1);
-		SEGGER_RTT_printf(0,"should be 00 %d\n",boschIntCheck[0]);
-		ble_advertising_start(BLE_ADV_MODE_FAST);
-	}
 }
+
 /****************************
 *
 *   timeout event   
@@ -230,14 +207,101 @@ void int_fxn(){
 *
 ****************************/
 static void timer_timeout_handler(void * p_context)
-{
-	if(!blockUpdate){
-		uint8_t* gyroData = readGyro();
-		our_termperature_characteristic_update(&m_our_service, gyroData);
+{	
+	/*uint8_t rxBuffer1[247];
+	uint8_t readFifo[1] = {0x85};
+	uint8_t* readFifoAddress = &readFifo[0];
+	
+	uint8_t* rxBufferAddress = &rxBuffer1[0];
+	nrf_drv_gpiote_out_clear(CS_ADXL1_PIN);
+	nrf_drv_spi_transfer(&spi, readFifoAddress, 1, rxBufferAddress, 247);
+	while (!spi_xfer_done)
+	{
+		__WFE();
 	}
+	nrf_drv_gpiote_out_set(CS_ADXL1_PIN);
+	spi_xfer_done = false;	
+	*/
+	
+	
+	uint8_t* fifoReadAddress = readFIFO();
+	/*if(FramRegister > 261900){
+		FRAMFull = true;
+		nrf_drv_gpiote_out_clear(green_led);
+		nrf_drv_gpiote_out_set(red_led);
+	}
+
+	
+	if(!FRAMFull){
+		uint8_t readFRAMBuffer[4];
+		readFRAMBuffer[0] = 0x03;
+		readFRAMBuffer[1] = FramRegister >> 16;
+		readFRAMBuffer[2] = FramRegister >> 8;
+		readFRAMBuffer[3] = FramRegister;
+		
+		uint8_t dataBufferHalf[250];
+
+		dataBufferHalf[0] = 0x02;
+		dataBufferHalf[1] = FramRegister >> 16;
+		dataBufferHalf[2] = FramRegister >> 8;
+		dataBufferHalf[3] = FramRegister;
+		int j = 4;
+		for(int i = 1; i < 247; i++){
+			dataBufferHalf[j] = *(fifoReadAddress+i);
+			j++;
+		}
+		FramRegister += 246;
+		
+		SEGGER_RTT_printf(0, "data 1 = %d\n", dataBufferHalf[1]);
+		SEGGER_RTT_printf(0, "data 2 = %d\n", dataBufferHalf[2]);
+		SEGGER_RTT_printf(0, "data 3 = %d\n", dataBufferHalf[3]);
+		
+		uint8_t FRAMtx[1] = {0x06};  								//write enable
+		uint8_t* addrFRAMtx = &FRAMtx[0];
+		nrf_drv_gpiote_out_clear(CS_FRAM);
+		nrf_drv_spi_transfer(&spi, addrFRAMtx,1, NULL,0);
+		while (!spi_xfer_done)
+		{
+		   __WFE();
+		}
+		nrf_drv_gpiote_out_set(CS_FRAM);
+		spi_xfer_done = false;	
+		
+		uint8_t* dataBufferFirstHalfAddy = &dataBufferHalf[0];
+		nrf_drv_gpiote_out_clear(CS_FRAM);
+		nrf_drv_spi_transfer(&spi, dataBufferFirstHalfAddy, 250, NULL, 0);
+		while (!spi_xfer_done)
+		{
+			__WFE();
+		}
+		nrf_drv_gpiote_out_set(CS_FRAM);
+		spi_xfer_done = false;	
+		
+		//read back
+		uint8_t receiveBuffer[250];
+		uint8_t* readFRAMAddy = &readFRAMBuffer[0];
+		uint8_t* receiveBufferAddy = &receiveBuffer[0];
+		nrf_drv_gpiote_out_clear(CS_FRAM);
+		nrf_drv_spi_transfer(&spi, readFRAMAddy, 4, receiveBufferAddy, 250);
+		while (!spi_xfer_done)
+		{
+			__WFE();
+		}
+		nrf_drv_gpiote_out_set(CS_FRAM);
+		spi_xfer_done = false;	
+	
+		
+		
+	}*/
+	
+		
 }
 
+void singleShotTimer(){
+	// start char timer
+		app_timer_start(m_our_char_timer_id, OUR_CHAR_TIMER_INTERVAL, NULL);
 
+}
 /**@brief Function for the Timer initialization.
  *
  * @details Initializes the timer module. This creates and starts application timers.
@@ -366,7 +430,7 @@ static void sleep_mode_enter(void)
     APP_ERROR_CHECK(err_code);
 
     // Prepare wakeup buttons.
-    err_code = bsp_btn_ble_sleep_mode_prepare();
+   // err_code = bsp_btn_ble_sleep_mode_prepare();
     APP_ERROR_CHECK(err_code);
 
     // Go to system-off mode (this function will not return; wakeup will cause a reset).
@@ -438,7 +502,7 @@ static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
 {
     dm_ble_evt_handler(p_ble_evt);
     ble_conn_params_on_ble_evt(p_ble_evt);
-    bsp_btn_ble_on_ble_evt(p_ble_evt);
+    //bsp_btn_ble_on_ble_evt(p_ble_evt);
     on_ble_evt(p_ble_evt);
     ble_advertising_on_ble_evt(p_ble_evt);
     // Call ble_our_service_on_ble_evt() to do housekeeping of ble connections related to our service and characteristic
@@ -630,7 +694,7 @@ static void buttons_leds_init(bool * p_erase_bonds)
                                  bsp_event_handler);
     APP_ERROR_CHECK(err_code);
 
-    err_code = bsp_btn_ble_init(NULL, &startup_event);
+    //err_code = bsp_btn_ble_init(NULL, &startup_event);
     APP_ERROR_CHECK(err_code);
 
     *p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
@@ -647,36 +711,9 @@ static void power_manage(void)
 
 
 
-/**
- * @brief Initialize the master TWI
- *
- * Function used to initialize master TWI interface that would communicate with simulated EEPROM.
- *
- * @return NRF_SUCCESS or the reason of failure
- */
-static ret_code_t twi_master_init(void)
-{
-    ret_code_t ret;
-    const nrf_drv_twi_config_t config =
-    {
-       .scl                = TWI_SCL_M,
-       .sda                = TWI_SDA_M,
-       .frequency          = NRF_TWI_FREQ_400K,
-       .interrupt_priority = APP_IRQ_PRIORITY_HIGH
-    };
-	//__nop();
-    do
-    {
-        ret = nrf_drv_twi_init(&m_twi_master, &config, NULL, NULL);
-        if(NRF_SUCCESS != ret)
-        {
-            break;
-        }
-        nrf_drv_twi_enable(&m_twi_master);
-    }while(0);
-    return ret;
-}
 
+/**@brief Function for application main entry.
+ */
 
 
 void initializePin(nrf_drv_gpiote_out_config_t pinConfig, nrf_drv_gpiote_pin_t pin, bool pinStatus){
@@ -702,47 +739,33 @@ int main(void)
 	*
 	****************************/
 	
-	ret_code_t err_code;
-	if(!nrf_drv_gpiote_is_init())
-	{
-		err_code = nrf_drv_gpiote_init();
-	}
-	if (err_code == 8){
-		SEGGER_RTT_WriteString(0,"NRF_INVALID_STATE\n");
-	}
+	ret_code_t err_code = init_gpiote();
  
 	nrf_drv_gpiote_out_config_t outputGPIO = {
-		NRF_GPIOTE_POLARITY_HITOLO,
+		NRF_GPIOTE_POLARITY_LOTOHI,
 		NRF_GPIOTE_INITIAL_VALUE_HIGH,
 		false,
 	};
-	initializePin(outputGPIO,CS_ADXL2_PIN_EVAL, true);
+	initializePin(outputGPIO,CS_ADXL2_PIN, true);
 
-	initializePin(outputGPIO,CS_ADXL1_PIN_EVAL, true);
+	initializePin(outputGPIO,CS_ADXL1_PIN, true);
 
-	initializePin(outputGPIO,CS_FRAM_EVAL,true);
+	initializePin(outputGPIO,CS_FRAM,true);
 
 	initializePin(outputGPIO,main_bosch_address_pin,true);
 
-	initializePin(outputGPIO,green_led,false);
+	initializePin(outputGPIO,green_led,true);
 
-	initializePin(outputGPIO,red_led,true);
+	initializePin(outputGPIO,red_led,false);
 
 	initializePin(outputGPIO,yellow_led,true);
 
 	nrf_drv_gpiote_in_config_t interrupt = {
 		NRF_GPIOTE_POLARITY_LOTOHI,
-		NRF_GPIO_PIN_PULLDOWN,
+		NRF_GPIO_PIN_NOPULL,
 		true,
-		true,
+		true
 	};
-	
-	err_code = nrf_drv_gpiote_in_init(boschIntEval, &interrupt, int_fxn);
-	if(err_code != 0){
-		SEGGER_RTT_WriteString(0,"interrupt pin not initialized\n");
-	}
-	nrf_drv_gpiote_in_event_enable(boschIntEval, true);
-	
 	
 	/****************************
 	*
@@ -750,142 +773,40 @@ int main(void)
 	*
 	****************************/
     
-
-/***********************************************************************************
+	initSPI();
+	//APP_ERROR_CHECK(nrf_drv_spi_init(&spi, &spi_config, spi_event_handler));
+	
+/*************************************************************************************************
 *
-*  Initialize i2c (twi)
-*		bosch bno055
+* ADXL initialize 
+*	meas mode
 *
-***********************************************************************************/
-	nrf_delay_ms(500); //on power up the bosch needs this time to initialize
-	ret_code_t i2cStatus;
-	i2cStatus = twi_master_init();
-	if (i2cStatus != NRF_SUCCESS)
-	{
-		SEGGER_RTT_WriteString(0, "i2c init ERROR\n");
+**************************************************************************************************/
+	//init variables for spi init and reads
+	
+	uint8_t adxlID = testADXL();
+	if(adxlID == 1){
+		SEGGER_RTT_WriteString(0, "!!!!!\n");
+		nrf_drv_gpiote_out_clear(yellow_led);
 	}
-	/****************************
-	*
-	*  normal power
-	*
-	****************************/
-	uint8_t txBuff[2] = {0x3E,0x01};  //Power mode = normal
-	uint8_t* addrTx = &txBuff[0];
-	uint8_t rxBuff[1];
-	uint8_t* addrRx = &rxBuff[0];
-
-	ret_code_t i2cErr;
-	//write
-	i2cErr = nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	if (i2cErr == NRF_ERROR_INTERNAL)
-	{
-		SEGGER_RTT_WriteString(0, "i2cError 1\n");
+	else if (adxlID == 0){
+		SEGGER_RTT_WriteString(0, "anterior board working!\n");
+		nrf_drv_gpiote_out_set(red_led);
 	}
-
-	//read
-	i2cErr = nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,false);
-	if (i2cErr == NRF_ERROR_INTERNAL)
-	{
-		SEGGER_RTT_WriteString(0, "i2cError 3\n");
+	initADXLfor1600();
+	//initFRAM1600();
+	
+	bool i2cInitialized = init_i2c();
+	if (!i2cInitialized){
+		SEGGER_RTT_WriteString(0, "i2c not initialized");
 	}
-	i2cErr = nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
-	if (i2cErr == NRF_ERROR_INTERNAL)
-	{
-		SEGGER_RTT_WriteString(0, "i2cError 4\n");
+	bool boschStatus;
+	boschStatus = initBosch();
+	if(boschStatus){
+		SEGGER_RTT_WriteString(0, "bosch init success!");
 	}
-
-	/****************************
-	*
-	* change page
-	* 	this changes what about half of the registers are for additional configurations
-	*
-	****************************/
-	txBuff[0] = 0x07;				//switch from page 0 to page 1 
-	txBuff[1] = 0x01;
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
-	
-	
-
-	/*
-	*  Bosch interrupt settings
-	*/
-	txBuff[0] = 0x08;
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
-	SEGGER_RTT_printf(0,"01 = %d\n", rxBuff[0]);
-	
-	txBuff[0] = 0x10; //interrupt enable
-	txBuff[1] = 0xC0; // enable no motion int
-	nrf_drv_twi_tx(&m_twi_master, 0x29, addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
-	SEGGER_RTT_printf(0,"C0 = %d\n", rxBuff[0]);
-	
-	txBuff[0] = 0x0F; //interrupt mask, value to write is still 0x40 for any motion 
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
-	SEGGER_RTT_printf(0,"C0 = %d\n", rxBuff[0]);
-	
-	
-	txBuff[0] = 0x11; // any motion threshold
-	txBuff[1] = 0x12; // threshold 7.81mg per LSB 
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
-	SEGGER_RTT_printf(0,"12 = %d\n", rxBuff[0]);
-	
-	txBuff[0] = 0x12; // acc interrupt settings 2 LSB == any motion duration
-	txBuff[1] = 0x1C;
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
-	SEGGER_RTT_printf(0,"1C = %d\n", rxBuff[0]);
-	
-	txBuff[0] = 0x16;
-	txBuff[1] = 0x35; // no motion 5 seconds will trigger interrupt
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
-	SEGGER_RTT_printf(0,"0B = %d\n", rxBuff[0]);
-	
-
-	txBuff[0] = 0x15;
-	txBuff[1] = 0x12;
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master, 0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
-	SEGGER_RTT_printf(0,"12 = %d\n", rxBuff[0]);
-
-	/****************************
-	*
-	*  change back to default page
-	*
-	****************************/
-	txBuff[0] = 0x07;				//back to page 0
-	txBuff[1] = 0x00;
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
-	/****************************
-	*
-	*  init complete, sensor can be read 
-	*		ADD error check
-	*
-	****************************/
-	txBuff[0] = 0x3D;				//operation mode = gyro only ********sensor powers on in config mode
-	txBuff[1] = 0x0C;
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,2,false);
-	nrf_drv_twi_tx(&m_twi_master,0x29,addrTx,1,false);
-	nrf_drv_twi_rx(&m_twi_master,0x29,addrRx,1);
-
-	if (rxBuff[0] == 0x0C){
-		SEGGER_RTT_WriteString(0, "Main BNO055 initialized\n");
-	}
-
-    bool erase_bonds;
+    
+	bool erase_bonds;
 
     // Initialize.
     timers_init();

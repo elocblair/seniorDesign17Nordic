@@ -235,9 +235,9 @@
 #if (SPI2_ENABLED == 1)
 #define SPI2_USE_EASY_DMA 0
 
-#define SPI2_CONFIG_SCK_PIN         12
+#define SPI2_CONFIG_SCK_PIN         11
 #define SPI2_CONFIG_MOSI_PIN        13
-#define SPI2_CONFIG_MISO_PIN        11
+#define SPI2_CONFIG_MISO_PIN        12
 #define SPI2_CONFIG_IRQ_PRIORITY    APP_IRQ_PRIORITY_LOW
 
 #define SPI2_INSTANCE_INDEX (SPI0_ENABLED + SPI1_ENABLED)
@@ -314,7 +314,7 @@
 #define TWI0_INSTANCE_INDEX      0
 #endif
 
-#define TWI1_ENABLED 1
+#define TWI1_ENABLED 0
 
 #if (TWI1_ENABLED == 1)
 #define TWI1_USE_EASY_DMA 0
